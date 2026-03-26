@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String   @id @default(uuid())
+  full_name     String
+  email         String   @unique
+  phone         String?
+  password_hash String
+  role          Role
+  specialties   String[] @default([])
+  is_verified   Boolean  @default(false)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  cases_as_client   Case[]         @relation("ClientCases")
+  cases_as_attorney Case[]         @relation("AttorneyCases")
+  notifications     Notification[]
+}
+
+enum Role {
+  client
+  attorney
+  admin
+}
+
+model Matter {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  price       Decimal  @db.Decimal(8, 2)
+  description String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  cases         Case[]
+  notifications Notification[]
+}
+
+model Case {
+  id             String     @id @default(uuid())
+  user_id        String
+  attorney_id    String?
+  matter_id      String
+  status         CaseStatus @default(draft)
+  payment_done   Boolean    @default(false)
+  amount_paid    Decimal?   @db.Decimal(8, 2)
+  access_granted Boolean    @default(false)
+  submitted_at   DateTime?
+  approved_at    DateTime?
+  created_at     DateTime   @default(now())
+  updated_at     DateTime   @updatedAt
+
+  client      User       @relation("ClientCases", fields: [user_id], references: [id])
+  attorney    User?      @relation("AttorneyCases", fields: [attorney_id], references: [id])
+  matter      Matter     @relation(fields: [matter_id], references: [id])
+  intake_data IntakeData?
+  documents   Document[]
+  notifications Notification[]
+}
+
+enum CaseStatus {
+  draft
+  submitted
+  assigned
+  in_review
+  approved
+  delivered
+}
+
+model IntakeData {
+  id                  String   @id @default(uuid())
+  case_id             String   @unique
+  data                Json
+  chat_log            Json?
+  updated_by_attorney Boolean  @default(false)
+  attorney_notes      String?
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  case Case @relation(fields: [case_id], references: [id])
+}
+
+model Document {
+  id          String   @id @default(uuid())
+  case_id     String
+  file_url    String
+  file_name   String
+  is_locked   Boolean  @default(true)
+  unlocked_by String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  case Case @relation(fields: [case_id], references: [id])
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  user_id    String
+  case_id    String
+  matter_id  String
+  is_sent    Boolean  @default(false)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user   User   @relation(fields: [user_id], references: [id])
+  case   Case   @relation(fields: [case_id], references: [id])
+  matter Matter @relation(fields: [matter_id], references: [id])
+}

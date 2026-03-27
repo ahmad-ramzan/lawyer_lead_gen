@@ -13,57 +13,76 @@ export class CasesService {
   }
 
   async getMyCases(userId: string) {
-    return this.prisma.case.findMany({
+    return this.prisma.investigation.findMany({
       where: { user_id: userId },
       include: { matter: { select: { name: true, code: true, price: true } } },
       orderBy: { created_at: 'desc' },
     });
   }
 
+  async getCasesByEmail(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) return [];
+    return this.prisma.investigation.findMany({
+      where: { user_id: user.id },
+      include: { matter: { select: { name: true, code: true, price: true } } },
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
+  async getCasePublic(investigationId: string) {
+    const record = await this.prisma.investigation.findUnique({
+      where: { id: investigationId },
+      include: { matter: { select: { name: true, code: true, price: true } } },
+    });
+    if (!record) throw new NotFoundException('Investigation not found');
+    return record;
+  }
+
   async createCase(userId: string, matterId: string) {
     const matter = await this.prisma.matter.findUnique({ where: { id: matterId } });
     if (!matter) throw new NotFoundException('Matter not found');
 
-    return this.prisma.case.create({
+    return this.prisma.investigation.create({
       data: { user_id: userId, matter_id: matterId },
       select: { id: true, status: true, matter_id: true, created_at: true },
     });
   }
 
-  async saveIntake(caseId: string, userId: string, data: object, chatLog?: object) {
-    const caseRecord = await this.prisma.case.findUnique({ where: { id: caseId } });
-    if (!caseRecord) throw new NotFoundException('Case not found');
-    if (caseRecord.user_id !== userId) throw new ForbiddenException();
+  async saveIntake(investigationId: string, userId: string, data: object, chatLog?: object) {
+    const record = await this.prisma.investigation.findUnique({ where: { id: investigationId } });
+    if (!record) throw new NotFoundException('Investigation not found');
+    if (record.user_id !== userId) throw new ForbiddenException();
 
     return this.prisma.intakeData.upsert({
-      where: { case_id: caseId },
+      where: { investigation_id: investigationId },
       update: { data: data as any, chat_log: chatLog as any ?? undefined },
-      create: { case_id: caseId, data: data as any, chat_log: chatLog as any ?? undefined },
+      create: { investigation_id: investigationId, data: data as any, chat_log: chatLog as any ?? undefined },
     });
   }
 
-  async getCase(caseId: string, userId: string) {
-    const caseRecord = await this.prisma.case.findUnique({
-      where: { id: caseId },
+  async getCase(investigationId: string, userId: string) {
+    const record = await this.prisma.investigation.findUnique({
+      where: { id: investigationId },
       include: { matter: { select: { name: true, code: true, price: true } } },
     });
-    if (!caseRecord) throw new NotFoundException('Case not found');
-    if (caseRecord.user_id !== userId) throw new ForbiddenException();
-    return caseRecord;
+    if (!record) throw new NotFoundException('Investigation not found');
+    if (record.user_id !== userId) throw new ForbiddenException();
+    return record;
   }
 
-  async getDocumentDownload(caseId: string, userId: string) {
-    const caseRecord = await this.prisma.case.findUnique({
-      where: { id: caseId },
+  async getDocumentDownload(investigationId: string, userId: string) {
+    const record = await this.prisma.investigation.findUnique({
+      where: { id: investigationId },
       include: { documents: true },
     });
-    if (!caseRecord) throw new NotFoundException('Case not found');
-    if (caseRecord.user_id !== userId) throw new ForbiddenException();
+    if (!record) throw new NotFoundException('Investigation not found');
+    if (record.user_id !== userId) throw new ForbiddenException();
 
-    if (!caseRecord.payment_done) throw new ForbiddenException('Payment required');
-    if (!caseRecord.access_granted) throw new ForbiddenException('Access not yet granted');
+    if (!record.payment_done) throw new ForbiddenException('Payment required');
+    if (!record.access_granted) throw new ForbiddenException('Access not yet granted');
 
-    const doc = caseRecord.documents[0];
+    const doc = record.documents[0];
     if (!doc) throw new NotFoundException('Document not found');
     if (doc.is_locked) throw new ForbiddenException('Document is locked');
 

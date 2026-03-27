@@ -25,6 +25,12 @@ let CasesController = class CasesController {
     getMatters() {
         return this.casesService.getMatters();
     }
+    lookupByEmail(body) {
+        return this.casesService.getCasesByEmail(body.email);
+    }
+    getCasePublic(caseId) {
+        return this.casesService.getCasePublic(caseId);
+    }
     getMyCases(req) {
         return this.casesService.getMyCases(req.user.id);
     }
@@ -44,13 +50,27 @@ let CasesController = class CasesController {
 exports.CasesController = CasesController;
 __decorate([
     (0, common_1.Get)('matters'),
-    (0, roles_guard_1.Roles)('client'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], CasesController.prototype, "getMatters", null);
 __decorate([
-    (0, common_1.Get)('cases'),
+    (0, common_1.Post)('investigations/lookup'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], CasesController.prototype, "lookupByEmail", null);
+__decorate([
+    (0, common_1.Get)('investigations/public/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], CasesController.prototype, "getCasePublic", null);
+__decorate([
+    (0, common_1.Get)('investigations'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, roles_guard_1.Roles)('client'),
     __param(0, (0, common_1.Request)()),
     __metadata("design:type", Function),
@@ -58,7 +78,8 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], CasesController.prototype, "getMyCases", null);
 __decorate([
-    (0, common_1.Post)('cases'),
+    (0, common_1.Post)('investigations'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, roles_guard_1.Roles)('client'),
     __param(0, (0, common_1.Request)()),
     __param(1, (0, common_1.Body)()),
@@ -67,7 +88,8 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], CasesController.prototype, "createCase", null);
 __decorate([
-    (0, common_1.Post)('cases/:id/intake'),
+    (0, common_1.Post)('investigations/:id/intake'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, roles_guard_1.Roles)('client'),
     __param(0, (0, common_1.Request)()),
     __param(1, (0, common_1.Param)('id')),
@@ -77,7 +99,8 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], CasesController.prototype, "saveIntake", null);
 __decorate([
-    (0, common_1.Get)('cases/:id'),
+    (0, common_1.Get)('investigations/:id'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, roles_guard_1.Roles)('client'),
     __param(0, (0, common_1.Request)()),
     __param(1, (0, common_1.Param)('id')),
@@ -86,7 +109,8 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], CasesController.prototype, "getCase", null);
 __decorate([
-    (0, common_1.Get)('cases/:id/document'),
+    (0, common_1.Get)('investigations/:id/document'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, roles_guard_1.Roles)('client'),
     __param(0, (0, common_1.Request)()),
     __param(1, (0, common_1.Param)('id')),
@@ -96,7 +120,6 @@ __decorate([
 ], CasesController.prototype, "getDocument", null);
 exports.CasesController = CasesController = __decorate([
     (0, common_1.Controller)(),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     __metadata("design:paramtypes", [cases_service_1.CasesService])
 ], CasesController);
 //# sourceMappingURL=cases.controller.js.map

@@ -3,5 +3,5 @@ export declare class MatchingService {
     private prisma;
     private readonly logger;
     constructor(prisma: PrismaService);
-    assignAttorney(caseId: string): Promise<void>;
+    assignAttorney(investigationId: string): Promise<void>;
 }

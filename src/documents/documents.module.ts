@@ -4,10 +4,12 @@ import { DocumentsService } from './documents.service';
 import { StorageService } from './storage.service';
 import { MailModule } from '../mail/mail.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PrismaService } from '../prisma/prisma.service';
+import { MatchingModule } from '../matching/matching.module';
 
 @Module({
-  imports: [MailModule, NotificationsModule],
+  imports: [MailModule, NotificationsModule, MatchingModule],
   controllers: [DocumentsController],
-  providers: [DocumentsService, StorageService],
+  providers: [DocumentsService, StorageService, PrismaService],
 })
 export class DocumentsModule {}

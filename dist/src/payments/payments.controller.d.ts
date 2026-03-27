@@ -11,7 +11,7 @@ export declare class PaymentsController {
     private mailService;
     private notificationsService;
     constructor(stripeService: StripeService, prisma: PrismaService, matchingService: MatchingService, mailService: MailService, notificationsService: NotificationsService);
-    createPaymentIntent(req: any, caseId: string, body: {
+    createPaymentIntent(caseId: string, body: {
         amount: number;
     }): Promise<{
         client_secret: string | null;

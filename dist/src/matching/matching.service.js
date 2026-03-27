@@ -19,29 +19,45 @@ let MatchingService = MatchingService_1 = class MatchingService {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async assignAttorney(caseId) {
-        const caseRecord = await this.prisma.case.findUnique({
-            where: { id: caseId },
-            include: { matter: { select: { code: true } } },
+    async assignAttorney(investigationId) {
+        const investigation = await this.prisma.investigation.findUnique({
+            where: { id: investigationId },
+            include: {
+                matter: {
+                    include: { matter_specialities: { select: { speciality_id: true } } },
+                },
+            },
         });
-        if (!caseRecord)
+        if (!investigation)
             return;
-        const matterCode = caseRecord.matter.code;
-        const allAttorneys = await this.prisma.user.findMany({
-            where: { role: 'attorney' },
+        const matterSpecialityIds = investigation.matter.matter_specialities.map((ms) => ms.speciality_id);
+        const allAttorneys = await this.prisma.attorney.findMany({
+            where: { role: 'attorney', is_available: true },
+            include: { attorney_specialities: { select: { speciality_id: true } } },
         });
         if (allAttorneys.length === 0) {
-            this.logger.warn(`No attorneys available for case ${caseId}. Reverting to submitted.`);
-            await this.prisma.case.update({
-                where: { id: caseId },
+            this.logger.warn(`No attorneys available for investigation ${investigationId}. Reverting to submitted.`);
+            await this.prisma.investigation.update({
+                where: { id: investigationId },
                 data: { status: 'submitted' },
             });
             return;
         }
-        const specialized = allAttorneys.filter((a) => a.specialties.length === 0 || a.specialties.includes(matterCode));
-        const pool = specialized.length > 0 ? specialized : allAttorneys;
+        let pool = allAttorneys;
+        if (matterSpecialityIds.length > 0) {
+            const specialized = allAttorneys.filter((a) => a.attorney_specialities.some((as) => matterSpecialityIds.includes(as.speciality_id)));
+            if (specialized.length === 0) {
+                this.logger.warn(`No available specialized attorney for investigation ${investigationId}. Waiting.`);
+                await this.prisma.investigation.update({
+                    where: { id: investigationId },
+                    data: { status: 'submitted', attorney_id: null },
+                });
+                return;
+            }
+            pool = specialized;
+        }
         const counts = await Promise.all(pool.map(async (attorney) => {
-            const count = await this.prisma.case.count({
+            const count = await this.prisma.investigation.count({
                 where: {
                     attorney_id: attorney.id,
                     status: { notIn: ['delivered'] },
@@ -50,14 +66,11 @@ let MatchingService = MatchingService_1 = class MatchingService {
             return { attorney, count };
         }));
         const assigned = counts.reduce((min, curr) => (curr.count < min.count ? curr : min));
-        await this.prisma.case.update({
-            where: { id: caseId },
-            data: {
-                attorney_id: assigned.attorney.id,
-                status: 'assigned',
-            },
+        await this.prisma.investigation.update({
+            where: { id: investigationId },
+            data: { attorney_id: assigned.attorney.id, status: 'assigned' },
         });
-        this.logger.log(`Case ${caseId} assigned to attorney ${assigned.attorney.id}`);
+        this.logger.log(`Investigation ${investigationId} assigned to attorney ${assigned.attorney.id}`);
     }
 };
 exports.MatchingService = MatchingService;

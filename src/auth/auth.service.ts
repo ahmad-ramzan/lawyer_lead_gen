@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
@@ -13,44 +13,79 @@ export class AuthService {
   async register(dto: {
     full_name: string;
     email: string;
-    password: string;
+    password?: string;
     role: 'client' | 'attorney' | 'admin';
     phone?: string;
-    specialties?: string[];
+    speciality_ids?: string[];
   }) {
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (dto.role === 'client') {
+      // Clients have no password — identified by email only
+      const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+      if (existing) throw new ConflictException('Email already registered');
+
+      const user = await this.prisma.user.create({
+        data: { full_name: dto.full_name, email: dto.email, phone: dto.phone },
+      });
+
+      const token = this.jwtService.sign({ sub: user.id, email: user.email, role: 'client' });
+      return {
+        access_token: token,
+        user: { id: user.id, full_name: user.full_name, email: user.email, role: 'client' },
+      };
+    }
+
+    // Attorney or Admin — requires password
+    if (!dto.password) throw new BadRequestException('Password is required');
+
+    const existing = await this.prisma.attorney.findUnique({ where: { email: dto.email } });
     if (existing) throw new ConflictException('Email already registered');
 
     const password_hash = await bcrypt.hash(dto.password, 10);
-    const user = await this.prisma.user.create({
+
+    const attorney = await this.prisma.attorney.create({
       data: {
         full_name: dto.full_name,
         email: dto.email,
-        phone: dto.phone,
         password_hash,
         role: dto.role,
-        specialties: dto.role === 'attorney' ? (dto.specialties ?? []) : [],
+        attorney_specialities: dto.speciality_ids?.length
+          ? { create: dto.speciality_ids.map((speciality_id) => ({ speciality_id })) }
+          : undefined,
       },
+      include: { attorney_specialities: { include: { speciality: true } } },
     });
 
-    const token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role });
+    const token = this.jwtService.sign({ sub: attorney.id, email: attorney.email, role: attorney.role });
     return {
       access_token: token,
-      user: { id: user.id, full_name: user.full_name, email: user.email, role: user.role },
+      user: { id: attorney.id, full_name: attorney.full_name, email: attorney.email, role: attorney.role },
     };
   }
 
-  async login(dto: { email: string; password: string }) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+  async login(dto: { email: string; password?: string; role?: string }) {
+    // Client login — email only, no password
+    if (dto.role === 'client') {
+      const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+      if (!user) throw new UnauthorizedException('Client not found');
 
-    const valid = await bcrypt.compare(dto.password, user.password_hash);
+      const token = this.jwtService.sign({ sub: user.id, email: user.email, role: 'client' });
+      return {
+        access_token: token,
+        user: { id: user.id, full_name: user.full_name, email: user.email, role: 'client' },
+      };
+    }
+
+    // Attorney / Admin — requires password
+    const attorney = await this.prisma.attorney.findUnique({ where: { email: dto.email } });
+    if (!attorney) throw new UnauthorizedException('Invalid credentials');
+
+    const valid = await bcrypt.compare(dto.password ?? '', attorney.password_hash);
     if (!valid) throw new UnauthorizedException('Invalid credentials');
 
-    const token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role });
+    const token = this.jwtService.sign({ sub: attorney.id, email: attorney.email, role: attorney.role });
     return {
       access_token: token,
-      user: { id: user.id, full_name: user.full_name, email: user.email, role: user.role },
+      user: { id: attorney.id, full_name: attorney.full_name, email: attorney.email, role: attorney.role },
     };
   }
 }

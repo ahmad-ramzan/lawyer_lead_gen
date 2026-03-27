@@ -9,6 +9,48 @@ export declare class CasesController {
         price: import("@prisma/client-runtime-utils").Decimal;
         description: string | null;
     }[]>;
+    lookupByEmail(body: {
+        email: string;
+    }): Promise<({
+        matter: {
+            code: string;
+            name: string;
+            price: import("@prisma/client-runtime-utils").Decimal;
+        };
+    } & {
+        id: string;
+        created_at: Date;
+        updated_at: Date;
+        matter_id: string;
+        user_id: string;
+        attorney_id: string | null;
+        status: string;
+        payment_done: boolean;
+        amount_paid: import("@prisma/client-runtime-utils").Decimal | null;
+        access_granted: boolean;
+        submitted_at: Date | null;
+        approved_at: Date | null;
+    })[]>;
+    getCasePublic(caseId: string): Promise<{
+        matter: {
+            code: string;
+            name: string;
+            price: import("@prisma/client-runtime-utils").Decimal;
+        };
+    } & {
+        id: string;
+        created_at: Date;
+        updated_at: Date;
+        matter_id: string;
+        user_id: string;
+        attorney_id: string | null;
+        status: string;
+        payment_done: boolean;
+        amount_paid: import("@prisma/client-runtime-utils").Decimal | null;
+        access_granted: boolean;
+        submitted_at: Date | null;
+        approved_at: Date | null;
+    }>;
     getMyCases(req: any): Promise<({
         matter: {
             code: string;
@@ -19,10 +61,10 @@ export declare class CasesController {
         id: string;
         created_at: Date;
         updated_at: Date;
+        matter_id: string;
         user_id: string;
         attorney_id: string | null;
-        matter_id: string;
-        status: import("@prisma/client").$Enums.CaseStatus;
+        status: string;
         payment_done: boolean;
         amount_paid: import("@prisma/client-runtime-utils").Decimal | null;
         access_granted: boolean;
@@ -35,7 +77,7 @@ export declare class CasesController {
         id: string;
         created_at: Date;
         matter_id: string;
-        status: import("@prisma/client").$Enums.CaseStatus;
+        status: string;
     }>;
     saveIntake(req: any, caseId: string, body: {
         data: object;
@@ -45,7 +87,7 @@ export declare class CasesController {
         created_at: Date;
         updated_at: Date;
         data: import("@prisma/client/runtime/client").JsonValue;
-        case_id: string;
+        investigation_id: string;
         chat_log: import("@prisma/client/runtime/client").JsonValue | null;
         updated_by_attorney: boolean;
         attorney_notes: string | null;
@@ -60,10 +102,10 @@ export declare class CasesController {
         id: string;
         created_at: Date;
         updated_at: Date;
+        matter_id: string;
         user_id: string;
         attorney_id: string | null;
-        matter_id: string;
-        status: import("@prisma/client").$Enums.CaseStatus;
+        status: string;
         payment_done: boolean;
         amount_paid: import("@prisma/client-runtime-utils").Decimal | null;
         access_granted: boolean;

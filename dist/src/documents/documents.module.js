@@ -13,14 +13,16 @@ const documents_service_1 = require("./documents.service");
 const storage_service_1 = require("./storage.service");
 const mail_module_1 = require("../mail/mail.module");
 const notifications_module_1 = require("../notifications/notifications.module");
+const prisma_service_1 = require("../prisma/prisma.service");
+const matching_module_1 = require("../matching/matching.module");
 let DocumentsModule = class DocumentsModule {
 };
 exports.DocumentsModule = DocumentsModule;
 exports.DocumentsModule = DocumentsModule = __decorate([
     (0, common_1.Module)({
-        imports: [mail_module_1.MailModule, notifications_module_1.NotificationsModule],
+        imports: [mail_module_1.MailModule, notifications_module_1.NotificationsModule, matching_module_1.MatchingModule],
         controllers: [documents_controller_1.DocumentsController],
-        providers: [documents_service_1.DocumentsService, storage_service_1.StorageService],
+        providers: [documents_service_1.DocumentsService, storage_service_1.StorageService, prisma_service_1.PrismaService],
     })
 ], DocumentsModule);
 //# sourceMappingURL=documents.module.js.map

@@ -27,7 +27,7 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     Promise.all([
       api.get('/admin/overview'),
-      api.get('/admin/cases'),
+      api.get('/admin/investigations'),
     ]).then(([ovRes, casesRes]) => {
       setOverview(ovRes.data);
       setCases(casesRes.data);

@@ -17,8 +17,6 @@ const BADGE_COLORS: Record<string, { bg: string; text: string }> = {
 
 interface Message { role: 'bot' | 'user'; content: string; }
 interface Matter { id: string; code: string; name: string; price: number; description: string; }
-interface MyCase { id: string; status: string; created_at: string; matter: { name: string; code: string; price: number }; payment_done: boolean; access_granted: boolean; }
-
 export default function ClientPortalPage() {
   const router = useRouter();
   const [matters, setMatters] = useState<Matter[]>([]);
@@ -32,16 +30,22 @@ export default function ClientPortalPage() {
   const [input, setInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [starting, setStarting] = useState(false);
-  const [myCases, setMyCases] = useState<MyCase[]>([]);
-  const [showMyCases, setShowMyCases] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Identity modal — shown when submitting without a token
+  const [showIdentity, setShowIdentity] = useState(false);
+  const [identity, setIdentity] = useState({ full_name: '', email: '', phone: '' });
+  const [identityLoading, setIdentityLoading] = useState(false);
+  const [identityError, setIdentityError] = useState('');
+  // Pending submit state saved while waiting for identity
+  const [pendingAnswers, setPendingAnswers] = useState<Record<string, string> | null>(null);
+  const [pendingChatLog, setPendingChatLog] = useState<any[] | null>(null);
 
   useEffect(() => {
     api.get('/matters').then(({ data }) => {
       setMatters(data);
       if (data.length > 0) selectMatter(data[0]);
     });
-    api.get('/cases').then(({ data }) => setMyCases(data)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -81,23 +85,27 @@ export default function ClientPortalPage() {
     setAnswers(newAnswers);
 
     if (isConfirming) {
-      setSubmitting(true);
-      try {
-        // Create the case only now — client has confirmed all answers
-        let activeCaseId = caseId;
-        if (!activeCaseId) {
-          const { data: caseData } = await api.post('/cases', { matter_id: selected.id });
-          activeCaseId = caseData.id;
-          setCaseId(activeCaseId);
+      const chatLog = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content }));
+
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      const role = typeof window !== 'undefined' ? localStorage.getItem('role') : null;
+
+      // Must be a client token — clear any non-client token (attorney/admin) and show identity modal
+      if (!token || role !== 'client') {
+        if (token && role !== 'client') {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('role');
+          localStorage.removeItem('user');
+          document.cookie = 'access_token=; Max-Age=0; path=/';
+          document.cookie = 'role=; Max-Age=0; path=/';
         }
-        const chatLog = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content }));
-        await api.post(`/cases/${activeCaseId}/intake`, { data: newAnswers, chat_log: chatLog });
-        router.push(`/cases/${activeCaseId}`);
-      } catch {
-        setMessages((prev) => [...prev, { role: 'bot', content: 'Failed to submit. Please try again.' }]);
-      } finally {
-        setSubmitting(false);
+        setPendingAnswers(newAnswers);
+        setPendingChatLog(chatLog);
+        setShowIdentity(true);
+        return;
       }
+
+      await doSubmit(newAnswers, chatLog);
     } else if (isDone) {
       setIsConfirming(true);
       setMessages((prev) => [...prev, { role: 'bot', content: 'Thank you. I have everything I need. Type anything to confirm and submit your case.' }]);
@@ -113,6 +121,64 @@ export default function ClientPortalPage() {
     }
   }
 
+  async function doSubmit(finalAnswers: Record<string, string>, chatLog: any[]) {
+    setSubmitting(true);
+    try {
+      let activeCaseId = caseId;
+      if (!activeCaseId) {
+        const { data: caseData } = await api.post('/investigations', { matter_id: selected!.id });
+        activeCaseId = caseData.id;
+        setCaseId(activeCaseId);
+      }
+      await api.post(`/investigations/${activeCaseId}/intake`, { data: finalAnswers, chat_log: chatLog });
+      router.push(`/investigations/${activeCaseId}`);
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 401 || status === 403) {
+        // Stale, invalid, or wrong-role token — clear it and ask for identity
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('role');
+        localStorage.removeItem('user');
+        document.cookie = 'access_token=; Max-Age=0; path=/';
+        document.cookie = 'role=; Max-Age=0; path=/';
+        setPendingAnswers(finalAnswers);
+        setPendingChatLog(chatLog);
+        setShowIdentity(true);
+      } else {
+        setMessages((prev) => [...prev, { role: 'bot', content: 'Failed to submit. Please try again.' }]);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleIdentitySubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!identity.full_name.trim() || !identity.email.trim()) return;
+    setIdentityLoading(true);
+    setIdentityError('');
+    try {
+      // Register client (no password) — finds or creates by email
+      const { data } = await api.post('/auth/register', {
+        full_name: identity.full_name,
+        email: identity.email,
+        phone: identity.phone || undefined,
+        role: 'client',
+      });
+      localStorage.setItem('access_token', data.access_token);
+      localStorage.setItem('role', 'client');
+      localStorage.setItem('user', JSON.stringify(data.user));
+      document.cookie = `access_token=${data.access_token}; path=/`;
+      document.cookie = `role=client; path=/`;
+      setShowIdentity(false);
+      await doSubmit(pendingAnswers!, pendingChatLog!);
+    } catch (err: any) {
+      setIdentityError(err.response?.data?.message || 'Failed to register. Please try again.');
+    } finally {
+      setIdentityLoading(false);
+    }
+  }
+
   function restart() {
     if (selected) selectMatter(selected);
   }
@@ -122,6 +188,57 @@ export default function ClientPortalPage() {
   return (
     <div className="flex flex-col h-screen" style={{ backgroundColor: '#f2f0eb' }}>
       <Navbar />
+
+      {/* Identity modal — shown when submitting without login */}
+      {showIdentity && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-sm mx-4">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Almost there</h2>
+            <p className="text-sm text-gray-500 mb-5">Enter your details to submit your case. No password needed.</p>
+            {identityError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2 mb-4">{identityError}</div>
+            )}
+            <form onSubmit={handleIdentitySubmit} className="space-y-3">
+              <input
+                required
+                placeholder="Full name"
+                value={identity.full_name}
+                onChange={(e) => setIdentity({ ...identity, full_name: e.target.value })}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+              <input
+                required
+                type="email"
+                placeholder="Email address"
+                value={identity.email}
+                onChange={(e) => setIdentity({ ...identity, email: e.target.value })}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+              <input
+                placeholder="Phone (optional)"
+                value={identity.phone}
+                onChange={(e) => setIdentity({ ...identity, phone: e.target.value })}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+              <button
+                type="submit"
+                disabled={identityLoading}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition disabled:opacity-50 mt-1"
+                style={{ backgroundColor: '#0f1623' }}
+              >
+                {identityLoading ? 'Submitting…' : 'Submit my case →'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowIdentity(false)}
+                className="w-full text-sm text-gray-400 hover:text-gray-600 transition"
+              >
+                Cancel
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Page header */}
       <div className="px-6 py-4 flex items-start justify-between border-b border-gray-200 bg-white">
@@ -135,110 +252,35 @@ export default function ClientPortalPage() {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Left sidebar — matter list + my cases */}
+        {/* Left sidebar — matter list */}
         <div className="w-64 border-r border-gray-200 bg-white flex flex-col flex-shrink-0">
-          {/* Tab toggle */}
-          <div className="flex border-b border-gray-100">
-            <button
-              onClick={() => setShowMyCases(false)}
-              className={`flex-1 py-2.5 text-xs font-semibold transition ${!showMyCases ? 'text-gray-900 border-b-2 border-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
-            >
-              New Matter
-            </button>
-            <button
-              onClick={() => setShowMyCases(true)}
-              className={`flex-1 py-2.5 text-xs font-semibold transition relative ${showMyCases ? 'text-gray-900 border-b-2 border-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
-            >
-              My Investigations
-              {myCases.length > 0 && (
-                <span className="ml-1.5 bg-amber-500 text-white text-xs rounded-full px-1.5 py-0.5">{myCases.length}</span>
-              )}
-            </button>
-          </div>
-
           <div className="flex-1 overflow-y-auto">
-            {!showMyCases ? (
-              /* Matter type list */
-              <>
-                <div className="px-4 pt-3 pb-1">
-                  <p className="text-xs font-semibold tracking-widest text-gray-400 uppercase">Select Matter Type</p>
-                </div>
-                {matters.map((m) => {
-                  const badge = BADGE_COLORS[m.code] || { bg: '#f3f4f6', text: '#374151' };
-                  const isActive = selected?.id === m.id;
-                  return (
-                    <button
-                      key={m.id}
-                      onClick={() => selectMatter(m)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition ${
-                        isActive ? 'border-l-2 border-amber-500' : 'hover:bg-gray-50'
-                      }`}
-                      style={isActive ? { backgroundColor: '#fdf8ee' } : {}}
-                    >
-                      <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold"
-                        style={{ backgroundColor: badge.bg, color: badge.text }}>
-                        {m.code}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{m.name}</p>
-                        <p className="text-xs text-gray-400">${Number(m.price).toFixed(0)} · atty review</p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </>
-            ) : (
-              /* My cases list */
-              <>
-                <div className="px-4 pt-3 pb-1">
-                  <p className="text-xs font-semibold tracking-widest text-gray-400 uppercase">Your Investigations</p>
-                </div>
-                {myCases.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-8 px-4">No investigations yet. Start a new matter.</p>
-                ) : (
-                  myCases.map((c) => {
-                    const badge = BADGE_COLORS[c.matter?.code] || { bg: '#f3f4f6', text: '#374151' };
-                    const statusColor = {
-                      draft: 'text-gray-400',
-                      submitted: 'text-yellow-600',
-                      assigned: 'text-blue-600',
-                      in_review: 'text-purple-600',
-                      approved: 'text-green-600',
-                      delivered: 'text-emerald-600',
-                    }[c.status] || 'text-gray-400';
-                    const statusLabel = {
-                      draft: 'Draft',
-                      submitted: 'Submitted',
-                      assigned: 'Assigned',
-                      in_review: 'In Review',
-                      approved: 'Approved',
-                      delivered: 'Ready ↓',
-                    }[c.status] || c.status;
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => router.push(`/cases/${c.id}`)}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 transition"
-                      >
-                        <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold"
-                          style={{ backgroundColor: badge.bg, color: badge.text }}>
-                          {c.matter?.code}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{c.matter?.name}</p>
-                          <div className="flex items-center gap-1.5">
-                            <span className={`text-xs font-semibold ${statusColor}`}>{statusLabel}</span>
-                            {!c.payment_done && <span className="text-xs text-orange-500">· Pay now</span>}
-                            {c.access_granted && <span className="text-xs text-emerald-600">· Download ready</span>}
-                          </div>
-                          <p className="text-xs text-gray-400">{new Date(c.created_at).toLocaleDateString()}</p>
-                        </div>
-                      </button>
-                    );
-                  })
-                )}
-              </>
-            )}
+            <div className="px-4 pt-3 pb-1">
+              <p className="text-xs font-semibold tracking-widest text-gray-400 uppercase">Select Matter Type</p>
+            </div>
+            {matters.map((m) => {
+              const badge = BADGE_COLORS[m.code] || { bg: '#f3f4f6', text: '#374151' };
+              const isActive = selected?.id === m.id;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => selectMatter(m)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition ${
+                    isActive ? 'border-l-2 border-amber-500' : 'hover:bg-gray-50'
+                  }`}
+                  style={isActive ? { backgroundColor: '#fdf8ee' } : {}}
+                >
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold"
+                    style={{ backgroundColor: badge.bg, color: badge.text }}>
+                    {m.code}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{m.name}</p>
+                    <p className="text-xs text-gray-400">${Number(m.price).toFixed(0)} · atty review</p>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 

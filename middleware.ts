@@ -6,22 +6,28 @@ export function middleware(request: NextRequest) {
   const role = request.cookies.get('role')?.value;
   const { pathname } = request.nextUrl;
 
-  const isAuth = pathname.startsWith('/auth');
-  const isClient = pathname.startsWith('/(client)') || pathname.startsWith('/dashboard') || pathname.startsWith('/matters') || pathname.startsWith('/chat') || pathname.startsWith('/cases');
-  const isAttorney = pathname.startsWith('/queue') || (pathname.startsWith('/cases') && role === 'attorney');
-  const isAdmin = pathname.startsWith('/admin');
+  // Public routes — no login required
+  const isPublic =
+    pathname.startsWith('/auth') ||
+    pathname.startsWith('/matters') ||
+    pathname.startsWith('/investigations') ||
+    pathname === '/';
 
-  if (!token && !isAuth) {
-    return NextResponse.redirect(new URL('/auth/login', request.url));
+  // Attorney-only routes
+  if (pathname.startsWith('/queue')) {
+    if (!token || role !== 'attorney') return NextResponse.redirect(new URL('/auth/login', request.url));
   }
 
-  if (token && isAuth) {
+  // Admin-only routes
+  if (pathname.startsWith('/admin')) {
+    if (!token || role !== 'admin') return NextResponse.redirect(new URL('/auth/login', request.url));
+  }
+
+  // Redirect logged-in attorney/admin away from auth pages
+  if (pathname.startsWith('/auth') && token) {
     if (role === 'attorney') return NextResponse.redirect(new URL('/queue', request.url));
     if (role === 'admin') return NextResponse.redirect(new URL('/admin/dashboard', request.url));
-    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
-
-  if (isAdmin && role !== 'admin') return NextResponse.redirect(new URL('/auth/login', request.url));
 
   return NextResponse.next();
 }

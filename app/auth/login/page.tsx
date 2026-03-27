@@ -21,9 +21,8 @@ export default function LoginPage() {
       localStorage.setItem('user', JSON.stringify(data.user));
       document.cookie = `access_token=${data.access_token}; path=/`;
       document.cookie = `role=${data.user.role}; path=/`;
-      if (data.user.role === 'attorney') router.push('/queue');
-      else if (data.user.role === 'admin') router.push('/admin/dashboard');
-      else router.push('/matters');
+      if (data.user.role === 'admin') router.push('/admin/dashboard');
+      else router.push('/queue');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Invalid credentials');
     } finally {
@@ -41,7 +40,7 @@ export default function LoginPage() {
         </div>
         <div>
           <p className="text-gray-400 text-sm leading-relaxed">
-            Legal self-service, powered by AI. Attorney-reviewed documents on demand.
+            Attorney and administrator portal. Clients access the portal directly — no login required.
           </p>
           <p className="text-gray-600 text-xs mt-4">Atlanta, GA · MVP v0.1</p>
         </div>
@@ -50,8 +49,8 @@ export default function LoginPage() {
       {/* Right form */}
       <div className="flex-1 flex items-center justify-center px-6">
         <div className="w-full max-w-sm">
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Sign in</h1>
-          <p className="text-sm text-gray-500 mb-7">Access your LexSelf portal</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-1">Staff Sign in</h1>
+          <p className="text-sm text-gray-500 mb-7">For attorneys and administrators only</p>
           {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-5">{error}</div>}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -59,7 +58,7 @@ export default function LoginPage() {
               <input type="email" required value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
-                placeholder="you@example.com" />
+                placeholder="you@signallawgroup.com" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
@@ -74,9 +73,20 @@ export default function LoginPage() {
               {loading ? 'Signing in…' : 'Sign in →'}
             </button>
           </form>
-          <p className="text-center text-sm text-gray-400 mt-6">
-            No account? <Link href="/auth/register" className="text-gray-700 font-medium hover:underline">Register</Link>
-          </p>
+          <div className="mt-6 pt-5 border-t border-gray-200 text-center space-y-2">
+            <p className="text-sm text-gray-400">
+              No account yet?{' '}
+              <Link href="/auth/register" className="text-gray-700 font-medium hover:underline">
+                Register
+              </Link>
+            </p>
+            <p className="text-xs text-gray-400">
+              Are you a client?{' '}
+              <Link href="/matters" className="text-gray-600 hover:underline">
+                Access the Client Portal →
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>

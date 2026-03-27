@@ -51,7 +51,7 @@ function PaymentForm({
     setPaying(true);
     setError('');
     try {
-      const { data } = await api.post(`/cases/${caseId}/payment`, { amount });
+      const { data } = await api.post(`/investigations/${caseId}/payment`, { amount });
       const clientSecret: string = data.client_secret;
 
       const cardElement = elements.getElement(CardElement);
@@ -120,7 +120,9 @@ export default function CaseStatusPage() {
   const [showPayment, setShowPayment] = useState(false);
 
   async function loadCase() {
-    const { data } = await api.get(`/cases/${id}`);
+    const role = typeof window !== 'undefined' ? localStorage.getItem('role') : null;
+    const endpoint = role === 'client' ? `/investigations/${id}` : `/investigations/public/${id}`;
+    const { data } = await api.get(endpoint);
     setCaseData(data);
   }
 
@@ -131,7 +133,7 @@ export default function CaseStatusPage() {
   async function downloadDocument() {
     setDownloading(true);
     try {
-      const { data } = await api.get(`/cases/${id}/document`);
+      const { data } = await api.get(`/investigations/${id}/document`);
       window.open(data.url, '_blank');
     } catch (err: any) {
       alert(err.response?.data?.message || 'Document not available yet.');
@@ -268,7 +270,18 @@ export default function CaseStatusPage() {
                 </button>
               )}
 
-              {caseData.payment_done && !caseData.access_granted && (
+              {caseData.payment_done && caseData.status === 'submitted' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-center">
+                  <p className="text-sm text-blue-700 font-medium">
+                    Waiting for an available attorney
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    All attorneys are currently unavailable. Your case is in the queue and will be assigned as soon as one becomes available. No action needed.
+                  </p>
+                </div>
+              )}
+
+              {caseData.payment_done && !caseData.access_granted && caseData.status !== 'submitted' && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-center">
                   <p className="text-sm text-amber-700 font-medium">
                     Payment confirmed — attorney review in progress
@@ -295,10 +308,10 @@ export default function CaseStatusPage() {
                     done: caseData.payment_done,
                   },
                   {
-                    label: 'Attorney assigned',
-                    done: ['assigned', 'in_review', 'approved', 'delivered'].includes(
-                      caseData.status
-                    ),
+                    label: (caseData.status === 'submitted' && caseData.payment_done)
+                      ? 'Waiting for available attorney…'
+                      : 'Attorney assigned',
+                    done: ['assigned', 'in_review', 'approved', 'delivered'].includes(caseData.status),
                   },
                   {
                     label: 'Document approved',

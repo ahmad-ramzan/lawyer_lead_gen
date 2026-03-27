@@ -13,7 +13,7 @@ export default function AttorneyCaseDetailPage() {
   const [actionLoading, setActionLoading] = useState('');
 
   useEffect(() => {
-    api.get(`/attorney/cases/${id}`)
+    api.get(`/attorney/investigations/${id}`)
       .then(({ data }) => {
         setCaseData(data);
         setNotes(data.intake_data?.attorney_notes || '');
@@ -24,7 +24,7 @@ export default function AttorneyCaseDetailPage() {
   async function saveNotes() {
     setActionLoading('notes');
     try {
-      await api.patch(`/attorney/cases/${id}/intake`, { attorney_notes: notes });
+      await api.patch(`/attorney/investigations/${id}/intake`, { attorney_notes: notes });
       alert('Notes saved.');
     } catch {
       alert('Failed to save notes.');
@@ -37,8 +37,8 @@ export default function AttorneyCaseDetailPage() {
     if (!confirm('Approve this case and generate the document?')) return;
     setActionLoading('approve');
     try {
-      await api.patch(`/attorney/cases/${id}/approve`);
-      const { data } = await api.get(`/attorney/cases/${id}`);
+      await api.patch(`/attorney/investigations/${id}/approve`);
+      const { data } = await api.get(`/attorney/investigations/${id}`);
       setCaseData(data);
     } catch {
       alert('Failed to approve case.');
@@ -51,7 +51,7 @@ export default function AttorneyCaseDetailPage() {
     if (!confirm('Grant download access to the client? This will send them an email.')) return;
     setActionLoading('grant');
     try {
-      await api.patch(`/attorney/cases/${id}/grant-access`);
+      await api.patch(`/attorney/investigations/${id}/grant-access`);
       router.push('/queue');
     } catch {
       alert('Failed to grant access.');

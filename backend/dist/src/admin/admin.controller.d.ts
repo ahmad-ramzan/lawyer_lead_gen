@@ -10,38 +10,49 @@ export declare class AdminController {
         phone: string | null;
     }[]>;
     getAttorneys(): Promise<{
-        active_cases: number;
+        specialties: string[];
+        active_investigations: number;
         id: string;
+        description: string | null;
         created_at: Date;
+        attorney_specialities: ({
+            speciality: {
+                id: string;
+                name: string;
+            };
+        } & {
+            speciality_id: string;
+            attorney_id: string;
+        })[];
         email: string;
         full_name: string;
-        specialties: string[];
+        is_available: boolean;
     }[]>;
-    getCases(): Promise<({
+    getInvestigations(): Promise<({
         matter: {
             id: string;
             code: string;
             name: string;
             price: import("@prisma/client-runtime-utils").Decimal;
         };
-        client: {
-            id: string;
-            email: string;
-            full_name: string;
-        };
         attorney: {
             id: string;
             email: string;
             full_name: string;
         } | null;
+        client: {
+            id: string;
+            email: string;
+            full_name: string;
+        };
     } & {
         id: string;
         created_at: Date;
         updated_at: Date;
+        matter_id: string;
         user_id: string;
         attorney_id: string | null;
-        matter_id: string;
-        status: import("@prisma/client").$Enums.CaseStatus;
+        status: string;
         payment_done: boolean;
         amount_paid: import("@prisma/client-runtime-utils").Decimal | null;
         access_granted: boolean;
@@ -53,4 +64,10 @@ export declare class AdminController {
         total_attorneys: number;
         cases_by_status: Record<string, number>;
     }>;
+    getSpecialities(): Promise<{
+        id: string;
+        name: string;
+        created_at: Date;
+        updated_at: Date;
+    }[]>;
 }

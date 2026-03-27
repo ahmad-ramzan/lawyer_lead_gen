@@ -36,7 +36,7 @@ export default function AdminClientsPage() {
   const [selectedCode, setSelectedCode] = useState<string>('ALL');
 
   useEffect(() => {
-    api.get('/admin/cases').then(({ data }) => setCases(data)).finally(() => setLoading(false));
+    api.get('/admin/investigations').then(({ data }) => setCases(data)).finally(() => setLoading(false));
   }, []);
 
   // Build matter list from data, preserving canonical order

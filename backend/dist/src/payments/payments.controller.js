@@ -19,8 +19,6 @@ const prisma_service_1 = require("../prisma/prisma.service");
 const matching_service_1 = require("../matching/matching.service");
 const mail_service_1 = require("../mail/mail.service");
 const notifications_service_1 = require("../notifications/notifications.service");
-const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
-const roles_guard_1 = require("../auth/roles.guard");
 let PaymentsController = class PaymentsController {
     stripeService;
     prisma;
@@ -34,7 +32,7 @@ let PaymentsController = class PaymentsController {
         this.mailService = mailService;
         this.notificationsService = notificationsService;
     }
-    async createPaymentIntent(req, caseId, body) {
+    async createPaymentIntent(caseId, body) {
         const intent = await this.stripeService.createPaymentIntent(body.amount, caseId);
         return { client_secret: intent.client_secret };
     }
@@ -52,7 +50,7 @@ let PaymentsController = class PaymentsController {
             if (!caseId)
                 return { received: true };
             const amountPaid = intent.amount_received / 100;
-            await this.prisma.case.update({
+            await this.prisma.investigation.update({
                 where: { id: caseId },
                 data: {
                     payment_done: true,
@@ -62,16 +60,13 @@ let PaymentsController = class PaymentsController {
                 },
             });
             await this.matchingService.assignAttorney(caseId);
-            const caseRecord = await this.prisma.case.findUnique({
+            const investigation = await this.prisma.investigation.findUnique({
                 where: { id: caseId },
-                include: {
-                    client: true,
-                    matter: true,
-                },
+                include: { client: true, matter: true },
             });
-            if (caseRecord) {
-                await this.mailService.sendCaseSubmitted(caseRecord.client.email, caseRecord.client.full_name, caseRecord.matter.name);
-                await this.notificationsService.create(caseRecord.user_id, caseId, caseRecord.matter_id);
+            if (investigation) {
+                await this.mailService.sendCaseSubmitted(investigation.client.email, investigation.client.full_name, investigation.matter.name);
+                await this.notificationsService.create(investigation.user_id, caseId, investigation.matter_id);
             }
         }
         return { received: true };
@@ -79,14 +74,11 @@ let PaymentsController = class PaymentsController {
 };
 exports.PaymentsController = PaymentsController;
 __decorate([
-    (0, common_1.Post)('cases/:id/payment'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
-    (0, roles_guard_1.Roles)('client'),
-    __param(0, (0, common_1.Request)()),
-    __param(1, (0, common_1.Param)('id')),
-    __param(2, (0, common_1.Body)()),
+    (0, common_1.Post)('investigations/:id/payment'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String, Object]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], PaymentsController.prototype, "createPaymentIntent", null);
 __decorate([

@@ -15,10 +15,10 @@ export class DocumentsService {
   ) {}
 
   async getAttorneyCases(attorneyId: string, status?: string) {
-    return this.prisma.case.findMany({
+    return this.prisma.investigation.findMany({
       where: {
         attorney_id: attorneyId,
-        ...(status ? { status: status as any } : {}),
+        ...(status ? { status } : {}),
       },
       include: {
         matter: { select: { name: true, code: true } },
@@ -28,9 +28,9 @@ export class DocumentsService {
     });
   }
 
-  async getAttorneyCase(caseId: string, attorneyId: string) {
-    const caseRecord = await this.prisma.case.findUnique({
-      where: { id: caseId },
+  async getAttorneyCase(investigationId: string, attorneyId: string) {
+    const record = await this.prisma.investigation.findUnique({
+      where: { id: investigationId },
       include: {
         matter: true,
         client: { select: { full_name: true, email: true } },
@@ -38,23 +38,23 @@ export class DocumentsService {
         documents: true,
       },
     });
-    if (!caseRecord) throw new NotFoundException('Case not found');
-    if (caseRecord.attorney_id !== attorneyId) throw new ForbiddenException();
-    return caseRecord;
+    if (!record) throw new NotFoundException('Investigation not found');
+    if (record.attorney_id !== attorneyId) throw new ForbiddenException();
+    return record;
   }
 
   async updateIntake(
-    caseId: string,
+    investigationId: string,
     attorneyId: string,
     data?: object,
     attorneyNotes?: string,
   ) {
-    const caseRecord = await this.prisma.case.findUnique({ where: { id: caseId } });
-    if (!caseRecord) throw new NotFoundException('Case not found');
-    if (caseRecord.attorney_id !== attorneyId) throw new ForbiddenException();
+    const record = await this.prisma.investigation.findUnique({ where: { id: investigationId } });
+    if (!record) throw new NotFoundException('Investigation not found');
+    if (record.attorney_id !== attorneyId) throw new ForbiddenException();
 
     return this.prisma.intakeData.update({
-      where: { case_id: caseId },
+      where: { investigation_id: investigationId },
       data: {
         ...(data ? { data: data as any } : {}),
         ...(attorneyNotes !== undefined ? { attorney_notes: attorneyNotes } : {}),
@@ -63,23 +63,22 @@ export class DocumentsService {
     });
   }
 
-  async approveCase(caseId: string, attorneyId: string) {
-    const caseRecord = await this.prisma.case.findUnique({
-      where: { id: caseId },
+  async approveCase(investigationId: string, attorneyId: string) {
+    const record = await this.prisma.investigation.findUnique({
+      where: { id: investigationId },
       include: { intake_data: true, matter: true },
     });
-    if (!caseRecord) throw new NotFoundException('Case not found');
-    if (caseRecord.attorney_id !== attorneyId) throw new ForbiddenException();
+    if (!record) throw new NotFoundException('Investigation not found');
+    if (record.attorney_id !== attorneyId) throw new ForbiddenException();
 
-    const attorneyNotes = caseRecord.intake_data?.attorney_notes || '';
-    // If attorney saved a draft (prefixed with [DRAFT]), use it as the document body
+    const attorneyNotes = record.intake_data?.attorney_notes || '';
     const hasDraft = attorneyNotes.startsWith('[DRAFT]');
     const docContent = hasDraft
       ? attorneyNotes.replace('[DRAFT]\n', '').replace(/\[NOTES\][\s\S]*$/, '').trim()
       : `SIGNAL LAW GROUP
-${caseRecord.matter.name.toUpperCase()}
+${record.matter.name.toUpperCase()}
 
-Case ID: ${caseRecord.id}
+Investigation ID: ${record.id}
 Prepared by: Signal Law Group
 Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
 
@@ -87,7 +86,7 @@ Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long',
 
 INTAKE SUMMARY
 
-${Object.entries(caseRecord.intake_data?.data ?? {}).map(([k, v], i) => `Q${i + 1}: ${v}`).join('\n\n')}
+${Object.entries(record.intake_data?.data ?? {}).map(([, v], i) => `Q${i + 1}: ${v}`).join('\n\n')}
 
 ────────────────────────────────
 
@@ -104,60 +103,56 @@ ${Object.entries(caseRecord.intake_data?.data ?? {}).map(([k, v], i) => `Q${i + 
     });
 
     const buffer = await Packer.toBuffer(doc);
-    const fileName = `${caseId}-draft.docx`;
-    const filePath = `cases/${caseId}/${fileName}`;
+    const fileName = `${investigationId}-draft.docx`;
+    const filePath = `investigations/${investigationId}/${fileName}`;
 
     await this.storage.uploadFile(filePath, buffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 
     await this.prisma.document.create({
       data: {
-        case_id: caseId,
+        investigation_id: investigationId,
         file_url: filePath,
         file_name: fileName,
         is_locked: true,
       },
     });
 
-    return this.prisma.case.update({
-      where: { id: caseId },
+    return this.prisma.investigation.update({
+      where: { id: investigationId },
       data: { status: 'approved', approved_at: new Date() },
     });
   }
 
-  async grantAccess(caseId: string, attorneyId: string) {
-    const caseRecord = await this.prisma.case.findUnique({
-      where: { id: caseId },
-      include: {
-        client: true,
-        matter: true,
-        documents: true,
-      },
+  async grantAccess(investigationId: string, attorneyId: string) {
+    const record = await this.prisma.investigation.findUnique({
+      where: { id: investigationId },
+      include: { client: true, matter: true, documents: true },
     });
-    if (!caseRecord) throw new NotFoundException('Case not found');
-    if (caseRecord.attorney_id !== attorneyId) throw new ForbiddenException();
+    if (!record) throw new NotFoundException('Investigation not found');
+    if (record.attorney_id !== attorneyId) throw new ForbiddenException();
 
-    await this.prisma.case.update({
-      where: { id: caseId },
+    await this.prisma.investigation.update({
+      where: { id: investigationId },
       data: { access_granted: true, status: 'delivered' },
     });
 
-    if (caseRecord.documents[0]) {
+    if (record.documents[0]) {
       await this.prisma.document.update({
-        where: { id: caseRecord.documents[0].id },
+        where: { id: record.documents[0].id },
         data: { is_locked: false, unlocked_by: attorneyId },
       });
     }
 
     await this.mailService.sendDocumentReady(
-      caseRecord.client.email,
-      caseRecord.client.full_name,
-      caseRecord.matter.name,
+      record.client.email,
+      record.client.full_name,
+      record.matter.name,
     );
 
     await this.notificationsService.create(
-      caseRecord.user_id,
-      caseId,
-      caseRecord.matter_id,
+      record.user_id,
+      investigationId,
+      record.matter_id,
     );
 
     return { success: true };

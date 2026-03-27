@@ -17,9 +17,9 @@ let NotificationsService = class NotificationsService {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async create(userId, caseId, matterId) {
+    async create(userId, investigationId, matterId) {
         return this.prisma.notification.create({
-            data: { user_id: userId, case_id: caseId, matter_id: matterId, is_sent: true },
+            data: { user_id: userId, investigation_id: investigationId, matter_id: matterId, is_sent: true },
         });
     }
 };

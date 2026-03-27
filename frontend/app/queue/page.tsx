@@ -83,21 +83,49 @@ export default function QueuePage() {
   const [actionLoading, setActionLoading] = useState('');
   const [activeTab, setActiveTab] = useState<'intake' | 'draft' | 'actions'>('intake');
   const [attorney, setAttorney] = useState<{ full_name: string; email: string; specialties?: string[] } | null>(null);
+  const [isAvailable, setIsAvailable] = useState(true);
+  const [togglingAvailability, setTogglingAvailability] = useState(false);
 
   useEffect(() => {
     const raw = localStorage.getItem('user');
     if (raw) setAttorney(JSON.parse(raw));
+    // Fetch live profile to get current is_available from DB
+    api.get('/attorney/profile').then(({ data }) => {
+      setIsAvailable(data.is_available);
+      setAttorney((prev: any) => prev ? { ...prev, is_available: data.is_available } : data);
+    }).catch(() => {});
     loadCases();
   }, []);
 
+  async function toggleAvailability() {
+    setTogglingAvailability(true);
+    try {
+      const { data } = await api.patch('/attorney/availability');
+      setIsAvailable(data.is_available);
+      const raw = localStorage.getItem('user');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        localStorage.setItem('user', JSON.stringify({ ...parsed, is_available: data.is_available }));
+      }
+      // If toggled to available, reload cases — pending investigations may now be assigned
+      if (data.is_available) {
+        await loadCases(selected?.id);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setTogglingAvailability(false);
+    }
+  }
+
   async function loadCases(keepSelectedId?: string) {
     setLoading(true);
-    const { data } = await api.get('/attorney/cases');
+    const { data } = await api.get('/attorney/investigations');
     setCases(data);
     if (keepSelectedId) {
       const found = data.find((c: any) => c.id === keepSelectedId);
       if (found) {
-        const { data: detail } = await api.get(`/attorney/cases/${found.id}`);
+        const { data: detail } = await api.get(`/attorney/investigations/${found.id}`);
         setSelected(detail);
         setNotes(detail.intake_data?.attorney_notes || '');
       } else if (data.length > 0) {
@@ -110,7 +138,7 @@ export default function QueuePage() {
   }
 
   async function selectCase(c: any) {
-    const { data } = await api.get(`/attorney/cases/${c.id}`);
+    const { data } = await api.get(`/attorney/investigations/${c.id}`);
     setSelected(data);
     setNotes(data.intake_data?.attorney_notes || '');
     setActiveTab('intake');
@@ -134,7 +162,7 @@ export default function QueuePage() {
   async function saveNotes() {
     setActionLoading('notes');
     try {
-      await api.patch(`/attorney/cases/${selected.id}/intake`, { attorney_notes: notes });
+      await api.patch(`/attorney/investigations/${selected.id}/intake`, { attorney_notes: notes });
     } catch {
       alert('Failed to save notes.');
     }
@@ -144,7 +172,7 @@ export default function QueuePage() {
   async function saveDraft() {
     setActionLoading('draft');
     try {
-      await api.patch(`/attorney/cases/${selected.id}/intake`, { attorney_notes: `[DRAFT]\n${draft}\n[NOTES]\n${notes}` });
+      await api.patch(`/attorney/investigations/${selected.id}/intake`, { attorney_notes: `[DRAFT]\n${draft}\n[NOTES]\n${notes}` });
       alert('Draft saved.');
     } catch {
       alert('Failed to save draft.');
@@ -157,7 +185,7 @@ export default function QueuePage() {
     setActionLoading('approve');
     const currentId = selected.id;
     try {
-      await api.patch(`/attorney/cases/${currentId}/approve`);
+      await api.patch(`/attorney/investigations/${currentId}/approve`);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to approve case.');
     }
@@ -170,7 +198,7 @@ export default function QueuePage() {
     setActionLoading('grant');
     const currentId = selected.id;
     try {
-      await api.patch(`/attorney/cases/${currentId}/grant-access`);
+      await api.patch(`/attorney/investigations/${currentId}/grant-access`);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to grant access.');
     }
@@ -202,11 +230,16 @@ export default function QueuePage() {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold text-gray-900">{attorney.full_name}</span>
-                  {/* Active indicator */}
-                  <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>
-                    Active
-                  </span>
+                  <button
+                    onClick={toggleAvailability}
+                    disabled={togglingAvailability}
+                    className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full transition disabled:opacity-50 ${
+                      isAvailable ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full inline-block ${isAvailable ? 'bg-green-500' : 'bg-red-400'}`}></span>
+                    {isAvailable ? 'Available' : 'Unavailable'}
+                  </button>
                 </div>
                 <div className="flex items-center gap-2 mt-0.5">
                   {counts.all > 0 && (

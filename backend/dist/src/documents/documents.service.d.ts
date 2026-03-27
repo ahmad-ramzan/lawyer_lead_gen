@@ -9,48 +9,49 @@ export declare class DocumentsService {
     private notificationsService;
     constructor(prisma: PrismaService, storage: StorageService, mailService: MailService, notificationsService: NotificationsService);
     getAttorneyCases(attorneyId: string, status?: string): Promise<({
-        client: {
-            full_name: string;
-            email: string;
-        };
         matter: {
             code: string;
             name: string;
         };
+        client: {
+            email: string;
+            full_name: string;
+        };
     } & {
         id: string;
+        created_at: Date;
+        updated_at: Date;
+        matter_id: string;
         user_id: string;
         attorney_id: string | null;
-        matter_id: string;
-        status: import("@prisma/client").$Enums.CaseStatus;
+        status: string;
         payment_done: boolean;
         amount_paid: import("@prisma/client-runtime-utils").Decimal | null;
         access_granted: boolean;
         submitted_at: Date | null;
         approved_at: Date | null;
-        created_at: Date;
-        updated_at: Date;
     })[]>;
-    getAttorneyCase(caseId: string, attorneyId: string): Promise<{
-        client: {
-            full_name: string;
-            email: string;
-        };
+    getAttorneyCase(investigationId: string, attorneyId: string): Promise<{
         matter: {
             id: string;
-            created_at: Date;
-            updated_at: Date;
             code: string;
             name: string;
+            type: string | null;
             price: import("@prisma/client-runtime-utils").Decimal;
             description: string | null;
+            created_at: Date;
+            updated_at: Date;
+        };
+        client: {
+            email: string;
+            full_name: string;
         };
         intake_data: {
             id: string;
             created_at: Date;
             updated_at: Date;
-            case_id: string;
             data: import("@prisma/client/runtime/client").JsonValue;
+            investigation_id: string;
             chat_log: import("@prisma/client/runtime/client").JsonValue | null;
             updated_by_attorney: boolean;
             attorney_notes: string | null;
@@ -59,7 +60,7 @@ export declare class DocumentsService {
             id: string;
             created_at: Date;
             updated_at: Date;
-            case_id: string;
+            investigation_id: string;
             file_url: string;
             file_name: string;
             is_locked: boolean;
@@ -67,43 +68,43 @@ export declare class DocumentsService {
         }[];
     } & {
         id: string;
+        created_at: Date;
+        updated_at: Date;
+        matter_id: string;
         user_id: string;
         attorney_id: string | null;
-        matter_id: string;
-        status: import("@prisma/client").$Enums.CaseStatus;
+        status: string;
         payment_done: boolean;
         amount_paid: import("@prisma/client-runtime-utils").Decimal | null;
         access_granted: boolean;
         submitted_at: Date | null;
         approved_at: Date | null;
-        created_at: Date;
-        updated_at: Date;
     }>;
-    updateIntake(caseId: string, attorneyId: string, data?: object, attorneyNotes?: string): Promise<{
+    updateIntake(investigationId: string, attorneyId: string, data?: object, attorneyNotes?: string): Promise<{
         id: string;
         created_at: Date;
         updated_at: Date;
-        case_id: string;
         data: import("@prisma/client/runtime/client").JsonValue;
+        investigation_id: string;
         chat_log: import("@prisma/client/runtime/client").JsonValue | null;
         updated_by_attorney: boolean;
         attorney_notes: string | null;
     }>;
-    approveCase(caseId: string, attorneyId: string): Promise<{
+    approveCase(investigationId: string, attorneyId: string): Promise<{
         id: string;
+        created_at: Date;
+        updated_at: Date;
+        matter_id: string;
         user_id: string;
         attorney_id: string | null;
-        matter_id: string;
-        status: import("@prisma/client").$Enums.CaseStatus;
+        status: string;
         payment_done: boolean;
         amount_paid: import("@prisma/client-runtime-utils").Decimal | null;
         access_granted: boolean;
         submitted_at: Date | null;
         approved_at: Date | null;
-        created_at: Date;
-        updated_at: Date;
     }>;
-    grantAccess(caseId: string, attorneyId: string): Promise<{
+    grantAccess(investigationId: string, attorneyId: string): Promise<{
         success: boolean;
     }>;
 }

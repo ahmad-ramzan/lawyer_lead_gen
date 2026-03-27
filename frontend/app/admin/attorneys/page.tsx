@@ -109,7 +109,10 @@ export default function AdminAttorneysPage() {
                     {initials}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{a.full_name}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-medium text-gray-900 truncate">{a.full_name}</p>
+                      <span className={`flex-shrink-0 w-1.5 h-1.5 rounded-full ${a.is_available ? 'bg-green-500' : 'bg-red-400'}`} />
+                    </div>
                     <p className="text-xs text-gray-400">{count} case{count !== 1 ? 's' : ''} · {a.active_investigations} active</p>
                     {a.specialties?.length > 0 && (
                       <p className="text-xs text-amber-600 truncate">{a.specialties.join(', ')}</p>
@@ -135,6 +138,10 @@ export default function AdminAttorneysPage() {
                   {selectedId !== 'ALL' && selectedAttorney && (
                     <div className="flex items-center gap-2 flex-wrap mt-0.5">
                       <p className="text-xs text-gray-400">{selectedAttorney.email} · {selectedAttorney.active_investigations} active</p>
+                      <span className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${selectedAttorney.is_available ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full inline-block ${selectedAttorney.is_available ? 'bg-green-500' : 'bg-red-400'}`} />
+                        {selectedAttorney.is_available ? 'Available' : 'Unavailable'}
+                      </span>
                       {selectedAttorney.specialties?.length > 0 && (
                         <div className="flex gap-1 flex-wrap">
                           {selectedAttorney.specialties.map((code: string) => (

@@ -19,7 +19,7 @@ export default function Navbar() {
     router.push('/auth/login');
   }
 
-  const isClient = pathname.startsWith('/dashboard') || pathname.startsWith('/matters') || pathname.startsWith('/chat') || pathname.startsWith('/cases');
+  const isClient = pathname.startsWith('/dashboard') || pathname.startsWith('/matters') || pathname.startsWith('/chat') || pathname.startsWith('/investigations');
   const isAttorney = pathname.startsWith('/queue') || pathname.startsWith('/attorney');
   const isAdmin = pathname.startsWith('/admin');
 
@@ -31,10 +31,16 @@ export default function Navbar() {
           <span className="text-xs font-medium tracking-widest uppercase" style={{ color: '#c9a84c' }}>Signal Law Group</span>
         </div>
         <nav className="flex items-center gap-1">
-          {role === 'client' && (
-            <Link href="/matters" className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${isClient ? 'bg-white text-gray-900' : 'text-gray-300 hover:text-white'}`}>
-              Client Portal
-            </Link>
+          {/* Client portal always visible */}
+          {(!role || role === 'client') && (
+            <>
+              <Link href="/matters" className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${pathname === '/matters' ? 'bg-white text-gray-900' : 'text-gray-300 hover:text-white'}`}>
+                Client Portal
+              </Link>
+              <Link href="/investigations" className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${pathname.startsWith('/investigations') ? 'bg-white text-gray-900' : 'text-gray-300 hover:text-white'}`}>
+                Submitted Matters
+              </Link>
+            </>
           )}
           {role === 'attorney' && (
             <Link href="/queue" className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${isAttorney ? 'bg-white text-gray-900' : 'text-gray-300 hover:text-white'}`}>
@@ -61,7 +67,11 @@ export default function Navbar() {
           MVP · v0.1
         </span>
         <span className="text-xs text-gray-400">Signal Law Group · Atlanta, GA</span>
-        <button onClick={logout} className="text-xs text-red-400 hover:text-red-300 transition">Sign out</button>
+        {role && role !== 'client' ? (
+          <button onClick={logout} className="text-xs text-red-400 hover:text-red-300 transition">Sign out</button>
+        ) : (
+          <Link href="/auth/login" className="text-xs text-gray-300 hover:text-white transition">Login →</Link>
+        )}
       </div>
     </header>
   );

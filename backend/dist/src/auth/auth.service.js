@@ -55,37 +55,64 @@ let AuthService = class AuthService {
         this.jwtService = jwtService;
     }
     async register(dto) {
-        const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+        if (dto.role === 'client') {
+            const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+            if (existing)
+                throw new common_1.ConflictException('Email already registered');
+            const user = await this.prisma.user.create({
+                data: { full_name: dto.full_name, email: dto.email, phone: dto.phone },
+            });
+            const token = this.jwtService.sign({ sub: user.id, email: user.email, role: 'client' });
+            return {
+                access_token: token,
+                user: { id: user.id, full_name: user.full_name, email: user.email, role: 'client' },
+            };
+        }
+        if (!dto.password)
+            throw new common_1.BadRequestException('Password is required');
+        const existing = await this.prisma.attorney.findUnique({ where: { email: dto.email } });
         if (existing)
             throw new common_1.ConflictException('Email already registered');
         const password_hash = await bcrypt.hash(dto.password, 10);
-        const user = await this.prisma.user.create({
+        const attorney = await this.prisma.attorney.create({
             data: {
                 full_name: dto.full_name,
                 email: dto.email,
-                phone: dto.phone,
                 password_hash,
                 role: dto.role,
-                specialties: dto.role === 'attorney' ? (dto.specialties ?? []) : [],
+                attorney_specialities: dto.speciality_ids?.length
+                    ? { create: dto.speciality_ids.map((speciality_id) => ({ speciality_id })) }
+                    : undefined,
             },
+            include: { attorney_specialities: { include: { speciality: true } } },
         });
-        const token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role });
+        const token = this.jwtService.sign({ sub: attorney.id, email: attorney.email, role: attorney.role });
         return {
             access_token: token,
-            user: { id: user.id, full_name: user.full_name, email: user.email, role: user.role },
+            user: { id: attorney.id, full_name: attorney.full_name, email: attorney.email, role: attorney.role },
         };
     }
     async login(dto) {
-        const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
-        if (!user)
+        if (dto.role === 'client') {
+            const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+            if (!user)
+                throw new common_1.UnauthorizedException('Client not found');
+            const token = this.jwtService.sign({ sub: user.id, email: user.email, role: 'client' });
+            return {
+                access_token: token,
+                user: { id: user.id, full_name: user.full_name, email: user.email, role: 'client' },
+            };
+        }
+        const attorney = await this.prisma.attorney.findUnique({ where: { email: dto.email } });
+        if (!attorney)
             throw new common_1.UnauthorizedException('Invalid credentials');
-        const valid = await bcrypt.compare(dto.password, user.password_hash);
+        const valid = await bcrypt.compare(dto.password ?? '', attorney.password_hash);
         if (!valid)
             throw new common_1.UnauthorizedException('Invalid credentials');
-        const token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role });
+        const token = this.jwtService.sign({ sub: attorney.id, email: attorney.email, role: attorney.role });
         return {
             access_token: token,
-            user: { id: user.id, full_name: user.full_name, email: user.email, role: user.role },
+            user: { id: attorney.id, full_name: attorney.full_name, email: attorney.email, role: attorney.role },
         };
     }
 };

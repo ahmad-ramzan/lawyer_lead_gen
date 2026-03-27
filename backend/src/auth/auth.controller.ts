@@ -10,16 +10,17 @@ export class AuthController {
     @Body() body: {
       full_name: string;
       email: string;
-      password: string;
+      password?: string;
       role: 'client' | 'attorney' | 'admin';
       phone?: string;
+      speciality_ids?: string[];
     },
   ) {
     return this.authService.register(body);
   }
 
   @Post('login')
-  login(@Body() body: { email: string; password: string }) {
+  login(@Body() body: { email: string; password?: string; role?: string }) {
     return this.authService.login(body);
   }
 }

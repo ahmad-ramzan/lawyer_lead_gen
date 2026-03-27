@@ -1,21 +1,10 @@
-import {
-  Controller,
-  Post,
-  Body,
-  Param,
-  UseGuards,
-  Request,
-  Headers,
-  Req,
-} from '@nestjs/common';
+import { Controller, Post, Body, Param, Headers, Req } from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
 import { StripeService } from './stripe.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MatchingService } from '../matching/matching.service';
 import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard, Roles } from '../auth/roles.guard';
 
 @Controller()
 export class PaymentsController {
@@ -27,11 +16,8 @@ export class PaymentsController {
     private notificationsService: NotificationsService,
   ) {}
 
-  @Post('cases/:id/payment')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('client')
+  @Post('investigations/:id/payment')
   async createPaymentIntent(
-    @Request() req: any,
     @Param('id') caseId: string,
     @Body() body: { amount: number },
   ) {
@@ -58,7 +44,7 @@ export class PaymentsController {
 
       const amountPaid = intent.amount_received / 100;
 
-      await this.prisma.case.update({
+      await this.prisma.investigation.update({
         where: { id: caseId },
         data: {
           payment_done: true,
@@ -70,25 +56,22 @@ export class PaymentsController {
 
       await this.matchingService.assignAttorney(caseId);
 
-      const caseRecord = await this.prisma.case.findUnique({
+      const investigation = await this.prisma.investigation.findUnique({
         where: { id: caseId },
-        include: {
-          client: true,
-          matter: true,
-        },
+        include: { client: true, matter: true },
       });
 
-      if (caseRecord) {
+      if (investigation) {
         await this.mailService.sendCaseSubmitted(
-          caseRecord.client.email,
-          caseRecord.client.full_name,
-          caseRecord.matter.name,
+          investigation.client.email,
+          investigation.client.full_name,
+          investigation.matter.name,
         );
 
         await this.notificationsService.create(
-          caseRecord.user_id,
+          investigation.user_id,
           caseId,
-          caseRecord.matter_id,
+          investigation.matter_id,
         );
       }
     }

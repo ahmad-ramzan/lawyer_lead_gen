@@ -26,7 +26,7 @@ export default function ClientPortalPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [step, setStep] = useState(0);
   const [isDone, setIsDone] = useState(false);
-  const [isConfirming, setIsConfirming] = useState(false);
+  const [isLastQuestion, setIsLastQuestion] = useState(false);
   const [input, setInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -58,7 +58,7 @@ export default function ClientPortalPage() {
     setAnswers({});
     setStep(0);
     setIsDone(false);
-    setIsConfirming(false);
+    setIsLastQuestion(false);
     setInput('');
     setCaseId(null);
     setStarting(true);
@@ -66,7 +66,9 @@ export default function ClientPortalPage() {
       // Only fetch first question — do NOT create a case yet
       const { data } = await api.post('/chat/next', { matter_id: matter.id, step: 0 });
       setMessages([{ role: 'bot', content: data.question }]);
-      if (data.is_last) setIsDone(true);
+      if (data.is_last) {
+        setIsLastQuestion(true);
+      }
     } catch {
       setMessages([{ role: 'bot', content: 'Failed to start intake. Please try again.' }]);
     } finally {
@@ -75,7 +77,7 @@ export default function ClientPortalPage() {
   }
 
   async function handleSend() {
-    if (!input.trim() || !selected || submitting) return;
+    if (!input.trim() || !selected || submitting || isDone) return;
     const answer = input.trim();
     setInput('');
     const userMsg: Message = { role: 'user', content: answer };
@@ -84,41 +86,47 @@ export default function ClientPortalPage() {
     const newAnswers = { ...answers, [key]: answer };
     setAnswers(newAnswers);
 
-    if (isConfirming) {
-      const chatLog = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content }));
+    // User just answered the last question — mark done and show submit button
+    if (isLastQuestion) {
+      setIsDone(true);
+      setMessages((prev) => [...prev, { role: 'bot', content: 'Thank you — I have everything I need. Click "Submit my case" below to continue.' }]);
+      return;
+    }
 
-      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-      const role = typeof window !== 'undefined' ? localStorage.getItem('role') : null;
-
-      // Must be a client token — clear any non-client token (attorney/admin) and show identity modal
-      if (!token || role !== 'client') {
-        if (token && role !== 'client') {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('role');
-          localStorage.removeItem('user');
-          document.cookie = 'access_token=; Max-Age=0; path=/';
-          document.cookie = 'role=; Max-Age=0; path=/';
-        }
-        setPendingAnswers(newAnswers);
-        setPendingChatLog(chatLog);
-        setShowIdentity(true);
-        return;
+    try {
+      const { data } = await api.post('/chat/next', { matter_id: selected.id, step: step + 1, answer });
+      setStep(step + 1);
+      setMessages((prev) => [...prev, { role: 'bot', content: data.question }]);
+      if (data.is_last) {
+        setIsLastQuestion(true);
       }
+    } catch {
+      setMessages((prev) => [...prev, { role: 'bot', content: 'Error fetching next question.' }]);
+    }
+  }
 
-      await doSubmit(newAnswers, chatLog);
-    } else if (isDone) {
-      setIsConfirming(true);
-      setMessages((prev) => [...prev, { role: 'bot', content: 'Thank you. I have everything I need. Type anything to confirm and submit your case.' }]);
-    } else {
-      try {
-        const { data } = await api.post('/chat/next', { matter_id: selected.id, step: step + 1, answer });
-        setStep(step + 1);
-        setMessages((prev) => [...prev, { role: 'bot', content: data.question }]);
-        if (data.is_last) setIsDone(true);
-      } catch {
-        setMessages((prev) => [...prev, { role: 'bot', content: 'Error fetching next question.' }]);
+  async function handleSubmitClick() {
+    if (!selected || submitting) return;
+    const chatLog = messages.map((m) => ({ role: m.role, content: m.content }));
+
+    // Clear any non-client tokens (attorney/admin) silently
+    if (typeof window !== 'undefined') {
+      const role = localStorage.getItem('role');
+      if (role && role !== 'client') {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('role');
+        localStorage.removeItem('user');
+        document.cookie = 'access_token=; Max-Age=0; path=/';
+        document.cookie = 'role=; Max-Age=0; path=/';
       }
     }
+
+    // Reset fields and show identity modal
+    setIdentity({ full_name: '', email: '', phone: '' });
+    setIdentityError('');
+    setPendingAnswers(answers);
+    setPendingChatLog(chatLog);
+    setShowIdentity(true);
   }
 
   async function doSubmit(finalAnswers: Record<string, string>, chatLog: any[]) {
@@ -332,24 +340,35 @@ export default function ClientPortalPage() {
 
               {/* Input */}
               <div className="bg-white border-t border-gray-200 px-6 py-4">
-                <div className="flex gap-3">
-                  <input
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                    disabled={submitting || starting}
-                    placeholder="Type your answer..."
-                    className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-gray-50"
-                  />
+                {isDone ? (
                   <button
-                    onClick={handleSend}
-                    disabled={submitting || !input.trim() || starting}
-                    className="px-5 py-2.5 rounded-xl text-sm font-medium text-white transition disabled:opacity-40"
+                    onClick={handleSubmitClick}
+                    disabled={submitting}
+                    className="w-full py-3 rounded-xl text-sm font-semibold text-white transition disabled:opacity-40"
                     style={{ backgroundColor: '#0f1623' }}
                   >
-                    {submitting ? '…' : 'Send →'}
+                    {submitting ? 'Submitting…' : 'Submit my case →'}
                   </button>
-                </div>
+                ) : (
+                  <div className="flex gap-3">
+                    <input
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+                      disabled={submitting || starting}
+                      placeholder="Type your answer..."
+                      className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-gray-50"
+                    />
+                    <button
+                      onClick={handleSend}
+                      disabled={submitting || !input.trim() || starting}
+                      className="px-5 py-2.5 rounded-xl text-sm font-medium text-white transition disabled:opacity-40"
+                      style={{ backgroundColor: '#0f1623' }}
+                    >
+                      {submitting ? '…' : 'Send →'}
+                    </button>
+                  </div>
+                )}
               </div>
             </>
           ) : (

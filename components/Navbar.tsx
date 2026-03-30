@@ -26,10 +26,10 @@ export default function Navbar() {
   return (
     <header className="flex items-center justify-between px-6 h-12" style={{ backgroundColor: '#0f1623' }}>
       <div className="flex items-center gap-6">
-        <div className="flex items-center gap-2">
+        <Link href="/matters" className="flex items-center gap-2">
           <span className="text-white font-semibold text-base tracking-tight">LexSelf</span>
           <span className="text-xs font-medium tracking-widest uppercase" style={{ color: '#c9a84c' }}>Signal Law Group</span>
-        </div>
+        </Link>
         <nav className="flex items-center gap-1">
           {/* Client portal always visible */}
           {(!role || role === 'client') && (

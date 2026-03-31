@@ -9,7 +9,8 @@ async function bootstrap() {
     ? process.env.FRONTEND_URL.split(',').map((o) => o.trim())
     : ['http://localhost:3000'];
   app.enableCors({ origin: allowedOrigins, credentials: true });
-  await app.listen(3001);
-  console.log('Backend running on http://localhost:3001');
+  const port = process.env.PORT || 3001;
+  await app.listen(port);
+  console.log(`Backend running on port ${port}`);
 }
 bootstrap();
